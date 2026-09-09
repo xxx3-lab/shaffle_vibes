@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Штатив — AI-генератор постов и пинов
 
-## Getting Started
+Next.js 14. Всё приложение работает в Docker: Next.js-сервер + nginx-реверс-прокси.
+Настройки, источники, история и загруженные картинки лежат в `./data` и переживают
+любые пересборки контейнеров.
 
-First, run the development server:
+## Запуск локально (одна команда)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+docker compose up -d --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Открыть http://localhost. Если порт 80 занят:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+HTTP_PORT=8080 docker compose up -d --build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Полезное:
 
-## Learn More
+```bash
+docker compose logs -f app   # логи приложения
+docker compose down          # остановить (данные в ./data останутся)
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Деплой на сервер (одна команда)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+node scripts/deploy.js
+# или
+npm run deploy
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Данные сервера берутся из `scripts/deploy.local.json` (не коммитится):
 
-## Deploy on Vercel
+```json
+{ "host": "1.2.3.4", "user": "root", "password": "...", "dir": "/opt/shtativ" }
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Скрипт сам: пакует исходники (без `data/` и секретов), заливает по SSH, ставит
+Docker, если его нет, гасит старый systemd-сервис и выполняет на сервере
+`docker compose up -d --build`, затем ждёт HTTP 200 на порту 80.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Состояние и логи:
+
+```bash
+node scripts/deploy.js status
+node scripts/deploy.js logs
+```
+
+## Как это устроено
+
+- `Dockerfile` — multi-stage: полные `node_modules` → сборка Next.js
+  (`output: "standalone"`) → минимальный runtime-образ. Внутри приложение
+  работает от непривилегированного пользователя `nextjs` (uid 1001).
+- `docker/app-entrypoint.sh` — при старте чинит права на `/app/data` и
+  понижает права до `nextjs`.
+- `docker-compose.yml` — сервисы `app` (Next.js, порт 3000 наружу не
+  опубликован) и `nginx` (80 → `app:3000`). Приложение под healthcheck;
+  nginx стартует, когда оно готово.
+- `docker/nginx.conf` — прокси с заголовками `X-Forwarded-*`, кэшем на год
+  для `/_next/static/` и таймаутом 300 с (генерация пачки постов через AI
+  может идти несколько минут).
+
+Обновление на сервере — та же команда `node scripts/deploy.js`; каталог
+`data/` на сервере при этом не трогается.

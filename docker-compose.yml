@@ -1,0 +1,28 @@
+# Штатив в Docker: Next.js-приложение + nginx-реверс-прокси.
+# Запуск одной командой:  docker compose up -d --build
+# Другой порт:           HTTP_PORT=8080 docker compose up -d --build
+services:
+  app:
+    build: .
+    image: shtativ:latest
+    restart: unless-stopped
+    volumes:
+      # настройки, источники, история и загруженные картинки — переживают пересборку
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/api/settings"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      app:
+        condition: service_healthy

@@ -1,0 +1,12 @@
+# Не тянем в сборочный контекст тяжёлое и секретное
+node_modules
+.next
+.git
+data
+.env
+*.pem
+npm-debug.log*
+.vercel
+coverage
+scripts/deploy.local.json
+*.tar.gz
