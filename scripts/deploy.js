@@ -14,9 +14,21 @@ const path = require("path");
 const os = require("os");
 const { execFileSync } = require("child_process");
 
-const cfg = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "deploy.local.json"), "utf-8")
-);
+let cfg;
+try {
+  cfg = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "deploy.local.json"), "utf-8")
+  );
+} catch {
+  console.error(
+    "Нет scripts/deploy.local.json.\n" +
+      "Этот скрипт запускается С ЛОКАЛЬНОЙ машины — он сам заливает код на сервер по SSH.\n" +
+      "Если вы уже на сервере и код скачан там, скрипт не нужен, просто выполните:\n" +
+      "  docker compose up -d --build\n" +
+      'Формат deploy.local.json: { "host": "...", "user": "root", "password": "..." }'
+  );
+  process.exit(1);
+}
 const HOST = cfg.host;
 const USER = cfg.user || "root";
 const PASS = cfg.password;
