@@ -56,6 +56,9 @@ export const DEFAULT_SETTINGS: Settings = {
   maxPostLength: 950,
   newsLimitPerSource: 5,
   similarityLimit: 0.72,
+  yaApiKey: "",
+  yaFolderId: "",
+  yaModel: "aliceai-image-art-3.0/latest",
 };
 
 export function getSettings(): Settings {

@@ -22,6 +22,9 @@ export async function PUT(request: Request) {
     maxPostLength: Number(body.maxPostLength) || current.maxPostLength,
     newsLimitPerSource: Number(body.newsLimitPerSource) || current.newsLimitPerSource,
     similarityLimit: Number(body.similarityLimit) || current.similarityLimit,
+    yaApiKey: String(body.yaApiKey ?? current.yaApiKey).trim(),
+    yaFolderId: String(body.yaFolderId ?? current.yaFolderId).trim(),
+    yaModel: String(body.yaModel ?? current.yaModel).trim() || current.yaModel,
   };
 
   saveSettings(next);

@@ -28,6 +28,7 @@ const FONTS = [
 
 export default function PinsPage() {
   const [links, setLinks] = useState("");
+  const [prompts, setPrompts] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [theme, setTheme] = useState("");
   const [mode, setMode] = useState<"phrase" | "speech" | "caption">("phrase");
@@ -52,9 +53,13 @@ export default function PinsPage() {
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
+    const promptList = prompts
+      .split("\n")
+      .map((p) => p.trim())
+      .filter(Boolean);
 
-    if (!linkList.length && !files.length) {
-      setErrors(["Вставьте ссылки на пины/картинки или выберите файлы"]);
+    if (!linkList.length && !files.length && !promptList.length) {
+      setErrors(["Вставьте ссылки, выберите файлы или опишите картинки для генерации"]);
       return;
     }
 
@@ -65,6 +70,7 @@ export default function PinsPage() {
     try {
       const fd = new FormData();
       linkList.forEach((l) => fd.append("links", l));
+      promptList.forEach((p) => fd.append("prompts", p));
       files.forEach((f) => fd.append("files", f));
       if (theme.trim()) fd.append("theme", theme.trim());
       fd.append("mode", mode);
@@ -163,7 +169,7 @@ export default function PinsPage() {
     <PageShell
       title="ПИНЫ И ПОСТЕРЫ"
       accentWord="ПОСТЕРЫ"
-      subtitle="Вставьте ссылки на пины (или картинки) и тему — сайт скачает картинку, напишет мотивационный текст и наложит его на постер."
+      subtitle="Вставьте ссылки на пины, загрузите картинки или сгенерируйте новые по описанию (YandexART) — сайт напишет мотивационный текст и наложит его на постер."
     >
       <Rise>
         <div className="ink-card p-6">
@@ -215,6 +221,26 @@ export default function PinsPage() {
                     {files.map((f) => f.name).join(", ")}
                   </p>
                 )}
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-widest text-ink/50">
+                  Или сгенерируйте картинки по описанию (YandexART)
+                </p>
+                <Textarea
+                  minRows={2}
+                  maxRows={4}
+                  placeholder={
+                    "Каждая строка — отдельная картинка:\nуютное утро, кофе у окна, мягкий свет\nзакат в горах, вдохновляющий пейзаж"
+                  }
+                  value={prompts}
+                  onChange={(e) => setPrompts(e.target.value)}
+                  classNames={{ inputWrapper: "border-2 border-ink bg-white shadow-[3px_3px_0_#141312]" }}
+                />
+                <p className="mt-2 text-xs text-ink/40">
+                  Нужен API-ключ Yandex Cloud — он задаётся в Настройках. Генерация одной картинки
+                  занимает до минуты.
+                </p>
               </div>
 
               <div>

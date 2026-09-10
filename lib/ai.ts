@@ -579,6 +579,46 @@ export async function generateImageKeywords(
   }
 }
 
+// ===== YandexART: генерация картинок по описанию =====
+
+// OpenAI-совместимый API Yandex Cloud: POST /v1/images/generations,
+// модель вида art://<folder_id>/<model>, ответ data[0].b64_json (PNG).
+export async function generateYandexImage(
+  settings: Settings,
+  prompt: string,
+  size = "1024x1024"
+): Promise<Buffer> {
+  if (!settings.yaApiKey || !settings.yaFolderId) {
+    throw new Error(
+      "Картинки по описанию недоступны: заполните API-ключ и ID каталога Yandex Cloud в Настройках"
+    );
+  }
+
+  const res = await fetch("https://ai.api.cloud.yandex.net/v1/images/generations", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Api-Key ${settings.yaApiKey}`,
+    },
+    body: JSON.stringify({
+      model: `art://${settings.yaFolderId}/${settings.yaModel}`,
+      prompt: prompt.slice(0, 500),
+      size,
+    }),
+    signal: AbortSignal.timeout(180000),
+  });
+
+  const raw = await res.text();
+  if (!res.ok) {
+    throw new Error(`YandexART HTTP ${res.status}: ${raw.slice(0, 300)}`);
+  }
+
+  const data = JSON.parse(raw);
+  const b64: string | undefined = data?.data?.[0]?.b64_json;
+  if (!b64) throw new Error("YandexART не вернул изображение");
+  return Buffer.from(b64, "base64");
+}
+
 // ===== Тексты для мем-постера (заголовок + угловые фразы) =====
 
 export interface MemeTexts {

@@ -16,6 +16,10 @@ export interface Settings {
   maxPostLength: number;
   newsLimitPerSource: number;
   similarityLimit: number;
+  // YandexART — генерация картинок для пинов (ключ и каталог вводятся в Настройках)
+  yaApiKey: string;
+  yaFolderId: string;
+  yaModel: string;
 }
 
 export interface NewsItem {

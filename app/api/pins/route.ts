@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { generateMotivation, type MotivationMode } from "@/lib/ai";
+import { generateMotivation, generateYandexImage, type MotivationMode } from "@/lib/ai";
 import { fetchImage, saveLocalImage, scrapePage, uploadExternal } from "@/lib/images";
 import { addHistoryEntry, getSettings, uid } from "@/lib/store";
 import type { PinResult } from "@/lib/types";
@@ -8,6 +8,7 @@ export async function POST(request: Request) {
   const inputs: (
     | { type: "link"; value: string }
     | { type: "file"; name: string; buffer: Buffer; mime: string; context: string }
+    | { type: "prompt"; value: string }
   )[] = [];
   let theme = "";
   let mode = "";
@@ -19,6 +20,8 @@ export async function POST(request: Request) {
       for (const [key, value] of form.entries()) {
         if (key === "links" && typeof value === "string" && value.trim()) {
           inputs.push({ type: "link", value: value.trim() });
+        } else if (key === "prompts" && typeof value === "string" && value.trim()) {
+          inputs.push({ type: "prompt", value: value.trim().slice(0, 500) });
         } else if (key === "theme" && typeof value === "string") {
           theme = value;
         } else if (key === "mode" && typeof value === "string") {
@@ -37,9 +40,13 @@ export async function POST(request: Request) {
     } else {
       const body = await request.json();
       const links: string[] = Array.isArray(body.links) ? body.links : [];
+      const prompts: string[] = Array.isArray(body.prompts) ? body.prompts : [];
       theme = String(body.theme || "");
       mode = String(body.mode || "");
       links.filter(Boolean).forEach((l: string) => inputs.push({ type: "link", value: l.trim() }));
+      prompts
+        .filter((p: unknown) => typeof p === "string" && p.trim())
+        .forEach((p: string) => inputs.push({ type: "prompt", value: p.trim().slice(0, 500) }));
     }
   } catch (e) {
     return NextResponse.json(
@@ -50,7 +57,7 @@ export async function POST(request: Request) {
 
   if (!inputs.length) {
     return NextResponse.json(
-      { error: "Ничего не передано: добавьте ссылки или файлы" },
+      { error: "Ничего не передано: добавьте ссылки, файлы или описания для генерации" },
       { status: 400 }
     );
   }
@@ -74,6 +81,12 @@ export async function POST(request: Request) {
         mime = input.mime;
         context = input.context;
         title = input.name;
+      } else if (input.type === "prompt") {
+        // Генерация картинки в YandexART по текстовому описанию
+        buffer = await generateYandexImage(settings, input.value);
+        mime = "image/png";
+        context = input.value;
+        title = "YandexART: " + input.value.slice(0, 60);
       } else {
         const url = input.value;
         // Прямая ссылка на картинку (например i.pinimg.com) или страница пина
