@@ -64,7 +64,10 @@ function buildTarball() {
   }
   const tarball = path.join(os.tmpdir(), "shtativ-deploy.tar.gz").replace(/\\/g, "/");
   console.log("=== Упаковка проекта ===");
-  execFileSync("tar", ["-czf", tarball, ...files], { cwd: path.join(__dirname, "..") });
+  // --force-local: GNU tar на Windows иначе считает "C:" в пути именем удалённого хоста
+  const tarArgs = ["-czf", tarball, ...files];
+  if (process.platform === "win32") tarArgs.unshift("--force-local");
+  execFileSync("tar", tarArgs, { cwd: path.join(__dirname, "..") });
   const mb = (fs.statSync(tarball).size / 1024 / 1024).toFixed(1);
   console.log(`    ${tarball} (${mb} МБ)`);
   return tarball;
@@ -144,12 +147,23 @@ function sftpPut(s, local, remote) {
     console.log("=== docker compose up -d --build (сборка может занять несколько минут) ===");
     const up = await run(conn, `cd ${DIR} && if docker compose version >/dev/null 2>&1; then DC="docker compose"; else DC="docker-compose"; fi && $DC up -d --build > /tmp/shtativ-deploy.log 2>&1; code=$?; tail -n 30 /tmp/shtativ-deploy.log; exit $code`, 1800000);
     if (up.code !== 0) {
-      throw new Error("docker compose up завершился с ошибкой — смотрите вывод выше");
+      // Compose v2 иногда возвращает 1 при пересоздании контейнеров, оставшихся
+      // от v1 с другими именами, хотя всё прошло успешно. Реальный результат
+      // проверяем ниже HTTP-ожиданием.
+      console.log(`(!) docker compose вернул код ${up.code} — проверяю фактическое состояние...`);
     }
 
     // 5. Ждём готовности и проверяем.
     console.log("=== Ждём ответа на :80 ===");
-    await run(conn, `code=000; for i in $(seq 1 40); do code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/ || true); [ "$code" = "200" ] && break; sleep 3; done; echo "HTTP $code"; [ "$code" = "200" ]`, 180000);
+    const health = await run(conn, `code=000; for i in $(seq 1 40); do code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/ || true); [ "$code" = "200" ] && break; sleep 3; done; echo "HTTP $code"; [ "$code" = "200" ]`, 180000);
+    if (health.code !== 0) {
+      throw new Error("Сайт не ответил HTTP 200 на порту 80 — смотрите логи: node scripts/deploy.js logs");
+    }
+    // На маленьком диске старые образы и кэш сборок съедают всё за пару деплоев.
+    // Рабочие контейнеры не трогаем: prune удаляет только образы без контейнеров
+    // и кэш сборок старше 7 дней.
+    console.log("=== Чистим старые образы и кэш сборок ===");
+    await run(conn, `docker image prune -af >/dev/null 2>&1 || true; docker builder prune -af --filter until=168h >/dev/null 2>&1 || true; df -h / | tail -1`);
     await run(conn, `(ufw status 2>/dev/null | grep -q "Status: active" && ufw allow 80/tcp || echo "ufw неактивен")`);
     await run(conn, `cd ${DIR} && if docker compose version >/dev/null 2>&1; then docker compose ps; else docker-compose ps; fi`);
   }

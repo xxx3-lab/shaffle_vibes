@@ -23,8 +23,13 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-# su-exec — понизить права с root до nextjs после чинения прав на data
-RUN apk add --no-cache su-exec \
+# su-exec — понизить права с root до nextjs после чинения прав на data.
+# fontconfig + font-dejavu — рендер текста на постерах: sharp рисует SVG-текст
+# системными шрифтами, в чистом alpine их нет и вместо букв выходят квадраты.
+# DejaVu покрывает кириллицу; отсутствующие имена (Arial Black и т.п.) fontconfig
+# заменяет на DejaVu Sans/Bold.
+RUN apk add --no-cache su-exec fontconfig font-dejavu \
+    && fc-cache -f \
     && addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
 
